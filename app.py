@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify
-from database import db, init_db, create_tables, User
+from database import db, init_db, create_tables, User, Book
 
 # Initialize the Flask application and database
 app = Flask(__name__)
@@ -76,6 +76,61 @@ def list_users():
         'created_at': user.created_at.isoformat()
     } for user in users]
     return jsonify({'users': users_data}), 200
+
+@app.route('/books', methods=['POST'])
+def create_book():
+    """
+    Create a new book in the database.
+    
+    Expected JSON payload:
+        {
+            "title": "string",
+            "author": "string",
+            "isbn": "string"
+        }
+    
+    Returns:
+        tuple: Success message with book ID and 201 status code, or
+               error message with 400 status code if validation fails
+    """
+    data = request.get_json()
+    
+    title = data.get('title')
+    author = data.get('author')
+    isbn = data.get('isbn')
+    
+    # Validate that all required fields are present
+    if not title or not author or not isbn:
+        return {'error': 'Missing required fields'}, 400
+    
+    # Create a new Book object and add it to the database
+    new_book = Book(title=title, author=author, isbn=isbn)
+    db.session.add(new_book)
+    db.session.commit()
+    
+    # Return success response with the created book's ID
+    return {"message": f"Book {title} created", "id": new_book.id}, 
+
+@app('/books', methods=['GET'])
+def list_books():
+    """
+    Retrieve all books from the database.
+    
+    Returns:
+        tuple: Dictionary containing list of books and 200 status code
+    """
+    books = Book.query.all()
+
+    # Prepare and return the books data
+    books_data = [{
+        'id': book.id,
+        'title': book.title,
+        'author': book.author,
+        'isbn': book.isbn,
+        'total_copies': book.total_copies,
+        'available_copies': book.available_copies
+    } for book in books]
+    return jsonify({'books': books_data}), 200
 
 
 # Run the Flask application when the script is executed directly
