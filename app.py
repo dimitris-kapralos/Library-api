@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify
-from database import db, init_db, create_tables, User, Book
+from database import db, init_db, create_tables, User, Book, Loan
 
 # Initialize the Flask application and database
 app = Flask(__name__)
@@ -132,6 +132,61 @@ def list_books():
     } for book in books]
     return jsonify({'books': books_data}), 200
 
+@app.route('/loans', methods=['POST'])
+def create_loan():
+    """
+    Create a new loan in the database.
+    
+    Expected JSON payload:
+        {
+            "user_id": "int",
+            "book_id": "int",
+            "loan_date": "string" 
+        }
+    
+    Returns:
+        tuple: Success message with loan ID and 201 status code, or
+               error message with 400 status code if validation fails
+    """
+    data = request.get_json()
+    
+    user_id = data.get('user_id')
+    book_id = data.get('book_id')
+    loan_date = data.get('loan_date')
+    
+    # Validate that all required fields are present
+    if not user_id or not book_id or not loan_date:
+        return {'error': 'Missing required fields'}, 400
+    
+    # Create a new Loan object and add it to the database
+    new_loan = Loan(user_id=user_id, book_id=book_id, loan_date=loan_date)
+    db.session.add(new_loan)
+    db.session.commit()
+    
+    # Return success response with the created loan's ID
+    return {"message": "Loan created", "id": new_loan.id}, 201
+
+@app.route('/loans', methods=['GET'])
+def list_loans():
+    """
+    Retrieve all loans from the database.
+    
+    Returns:
+        tuple: Dictionary containing list of loans and 200 status code
+    """
+    loans = Loan.query.all()
+
+    # Prepare and return the loans data
+    loans_data = [{
+        'id': loan.id,
+        'user_id': loan.user_id,
+        'book_id': loan.book_id,
+        'loan_date': loan.loan_date.isoformat(),
+        'due_date': loan.due_date.isoformat(),
+        'return_date': loan.return_date.isoformat() if loan.return_date else None,
+        'fine': loan.fine
+    } for loan in loans]
+    return jsonify({'loans': loans_data}), 200
 
 # Run the Flask application when the script is executed directly
 if __name__ == '__main__':
