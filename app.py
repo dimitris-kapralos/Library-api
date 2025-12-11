@@ -1,5 +1,6 @@
 from flask import Flask, request, jsonify
 from database import db, init_db, create_tables, User, Book, Loan
+from datetime import datetime
 
 # Initialize the Flask application and database
 app = Flask(__name__)
@@ -169,7 +170,7 @@ def get_book(book_id):
             'completed_loans': completed_loans,
             'availability': book.available_copies > 0
         }
-    })
+    }), 200
 
 @app.route('/books/<int:book_id>', methods=['PATCH'])
 def update_book_copies(book_id):
@@ -284,6 +285,62 @@ def list_loans():
         'fine': loan.fine
     } for loan in loans]
     return jsonify({'loans': loans_data}), 200
+
+@app.route('/loans/<int:loan_id>', methods=['GET'])
+def get_loan(loan_id):
+    """
+    Retrieve a specific loan by its ID.
+    
+    Args:
+        loan_id: The ID of the loan to retrieve
+    
+    Returns:
+        tuple: Loan details and 200 status code, or
+               error message with 404 status code if loan not found
+    """
+    loan = Loan.query.get(loan_id)
+    if not loan:
+        return {"error": f"Loan with ID {loan_id} not found"}, 404
+    
+    user = User.query.get(loan.user_id)
+    book = Book.query.get(loan.book_id)
+    
+    # calculate if the loan is overdue
+    is_overdue = False
+    days_overdue = 0
+    current_fine = loan.fine
+    
+    if loan.return_date is None and loan.due_date < datetime.utcnow():
+        is_overdue = True
+        time_overdue = datetime.utcnow() - loan.due_date
+        days_overdue = time_overdue.days
+        current_fine = min(days_overdue * 0.50, 25.00)
+        
+    return jsonify ({
+        'loan': {
+            'id': loan.id,
+            'loan_date': loan.loan_date.isoformat(),
+            'due_date': loan.due_date.isoformat(),
+            'return_date': loan.return_date.isoformat() if loan.return_date else None,
+            'fine': loan.fine,
+            'is_overdue': is_overdue,
+            'is_returned': loan.return_date is not None,
+            'days_overdue': days_overdue,
+            'current_fine': current_fine
+        },
+        'user': {
+            'id': user.id,
+            'username': user.username,
+            'email': user.email,
+            'phone': user.phone
+        } if user else None,
+        'book': {
+            'id': book.id,
+            'title': book.title,
+            'author': book.author,
+            'isbn': book.isbn
+        } if book else None
+    }), 200  
 
 # Run the Flask application when the script is executed directly
 if __name__ == '__main__':
