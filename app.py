@@ -132,6 +132,48 @@ def list_books():
     } for book in books]
     return jsonify({'books': books_data}), 200
 
+@app.route('/books/<int:book_id>', methods=['PATCH'])
+def update_book_copies(book_id):
+    """
+    Update the total and available copies of a book.
+    
+    Expected JSON payload:
+        {
+            "total_copies": "int" 
+        }
+    
+    Returns:
+        tuple: Success message with updated book data and 200 status code, or
+               error message with 400/404 status code if validation fails
+    """
+    data = request.get_json()
+    
+    total_copies = data.get('total_copies')
+    if total_copies is None:
+        return {"error": "Missing total copies field"}, 400
+    
+    if total_copies < 0:
+        return {"error": "Total copies cannot be negative"}, 400
+    
+    book = Book.query.get(book_id)
+    if not book:
+        return {"error": f"Book with ID {book_id} not found"}, 404
+    
+    # Calculate how many copies are currently on loan
+    books_on_loan = book.total_copies - book.available_copies
+    
+    if total_copies < books_on_loan:
+        return {"error": f"Total copies cannot be less than copies on loan ({books_on_loan})"}, 400
+    
+    # Update total and available copies
+    book.available_copies += (total_copies - book.total_copies)
+    book.total_copies = total_copies
+    db.session.commit()
+    
+    return {"message": f"Book ID {book_id} updated", 
+            "total_copies": book.total_copies, 
+            "available_copies": book.available_copies}, 200
+
 @app.route('/loans', methods=['POST'])
 def create_loan():
     """
