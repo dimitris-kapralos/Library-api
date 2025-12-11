@@ -109,9 +109,9 @@ def create_book():
     db.session.commit()
     
     # Return success response with the created book's ID
-    return {"message": f"Book {title} created", "id": new_book.id}, 
+    return {"message": f"Book {title} created", "id": new_book.id}, 201
 
-@app('/books', methods=['GET'])
+@app.route('/books', methods=['GET'])
 def list_books():
     """
     Retrieve all books from the database.
@@ -135,13 +135,12 @@ def list_books():
 @app.route('/loans', methods=['POST'])
 def create_loan():
     """
-    Create a new loan in the database.
+    Create a new loan in the database, ensuring book and user exist and copies are available.
     
     Expected JSON payload:
         {
             "user_id": "int",
-            "book_id": "int",
-            "loan_date": "string" 
+            "book_id": "int"
         }
     
     Returns:
@@ -152,14 +151,31 @@ def create_loan():
     
     user_id = data.get('user_id')
     book_id = data.get('book_id')
-    loan_date = data.get('loan_date')
     
-    # Validate that all required fields are present
-    if not user_id or not book_id or not loan_date:
-        return {'error': 'Missing required fields'}, 400
+    # Validate required fields
+    if not user_id or not book_id:
+        return {'error': 'Missing required fields (user_id, book_id)'}, 400
     
-    # Create a new Loan object and add it to the database
-    new_loan = Loan(user_id=user_id, book_id=book_id, loan_date=loan_date)
+    # Check if User and Book exist
+    user = User.query.get(user_id)
+    book = Book.query.get(book_id)
+    
+    if not user:
+        return {'error': f'User with ID {user_id} not found'}, 404
+    
+    if not book:
+        return {'error': f'Book with ID {book_id} not found'}, 404
+        
+    # Check for available copies
+    if book.available_copies <= 0:
+        return {'error': f'No available copies of book "{book.title}" (ID: {book_id}) for loan'}, 400
+    
+    # Create a new Loan object (loan_date defaults to now in the model)
+    new_loan = Loan(user_id=user_id, book_id=book_id)
+    
+    # Update Book's available copies
+    book.available_copies -= 1
+    
     db.session.add(new_loan)
     db.session.commit()
     
