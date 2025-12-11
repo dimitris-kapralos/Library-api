@@ -132,6 +132,45 @@ def list_books():
     } for book in books]
     return jsonify({'books': books_data}), 200
 
+@app.route('/books/<int:book_id>', methods=['GET'])
+def get_book(book_id):
+    """
+    Retrieve a specific book with availability and loan history.
+    
+    Args:
+        book_id: The ID of the book to retrieve
+    
+    Returns:
+        tuple: Book details with availability stats and 200 status code, or
+               error message with 404 status code if book not found
+    """
+    book = Book.query.get(book_id)
+    if not book:
+        return {"error": f"Book with ID {book_id} not found"}, 404
+    
+    # get loan history for the book
+    total_loans = Loan.query.filter_by(book_id=book_id).count()
+    active_loans = Loan.query.filter_by(book_id=book_id, return_date=None).count()
+    completed_loans = Loan.query.filter(Loan.book_id==book_id, Loan.return_date.isnot(None)).count()
+    
+    return jsonify ({
+        'book': {
+            'id': book.id,
+            'title': book.title,
+            'author': book.author,
+            'isbn': book.isbn,
+            'total_copies': book.total_copies,
+            'available_copies': book.available_copies,
+            'copies_on_loan': book.total_copies - book.available_copies
+        },
+        'loan_history': {
+            'total_loans': total_loans,
+            'active_loans': active_loans,
+            'completed_loans': completed_loans,
+            'availability': book.available_copies > 0
+        }
+    })
+
 @app.route('/books/<int:book_id>', methods=['PATCH'])
 def update_book_copies(book_id):
     """
