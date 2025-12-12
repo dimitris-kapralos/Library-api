@@ -341,6 +341,69 @@ def get_loan(loan_id):
             'isbn': book.isbn
         } if book else None
     }), 200  
+    
+@app.route('/loans/<int:loan_id>/return', methods=['PATCH'])    
+def return_book(loan_id):
+    """
+    Process a book return and calculate any fines for overdue books.
+    
+    Business Logic:
+    - Fine rate: $0.50 per day overdue
+    - Maximum fine: $25.00
+    - Due date: 14 days from loan date
+    
+    Args:
+        loan_id: The ID of the loan to return
+    
+    Returns:
+        tuple: Success message with fine details and 200 status code, or
+               error message with 400/404 status code if validation fails
+    """
+    loan = Loan.query.get(loan_id)
+    if not loan:
+        return {"error": f"Loan with ID {loan_id} not found"}, 404
+    
+    if loan.return_date is not None:
+        return {"error": f"Book for Loan ID {loan_id} has already been returned"}, 400
+    
+    book = Book.query.get(loan.book_id)
+    if not book:
+        return {"error": f"Book with ID {loan.book_id} not found"}, 404
+    
+    # Set the return date to now
+    loan.return_date = datetime.utcnow()
+    
+    # Calculate overdue fine if applicable
+    fine = 0.0
+    days_overdue = 0
+    is_overdue = False
+    
+    if loan.return_date > loan.due_date:
+        is_overdue = True
+        time_overdue = loan.return_date - loan.due_date
+        days_overdue = time_overdue.days
+        fine = min(days_overdue * 0.50, 25.00)
+        loan.fine = fine
+
+    # Update Book's available copies
+    book.available_copies += 1
+    db.session.commit()
+    
+    response = {
+        "message": f"Book ID {book.id} returned successfully",
+        "loan_id": loan.id,
+        "book_title": book.title,
+        "return_date": loan.return_date.isoformat(),
+        "due_date": loan.due_date.isoformat(),
+        "is_overdue": is_overdue,
+        "days_overdue": days_overdue,
+        "fine": fine
+    }        
+    
+    if is_overdue:
+        response["warning"] = f"A fine of ${fine:.2f} has been applied for {days_overdue} days overdue."
+
+    return response, 200
 
 # Run the Flask application when the script is executed directly
 if __name__ == '__main__':
