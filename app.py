@@ -219,6 +219,11 @@ def create_loan():
     """
     Create a new loan in the database, ensuring book and user exist and copies are available.
     
+    Business Rules:
+    - User cannot have more than 5 active loans
+    - Book must have available copies
+    - User and Book must exist
+    
     Expected JSON payload:
         {
             "user_id": "int",
@@ -247,10 +252,23 @@ def create_loan():
     
     if not book:
         return {'error': f'Book with ID {book_id} not found'}, 404
+    
+    # Business Rule: Check active loans limit (max 5 per user)
+    active_loans_count = Loan.query.filter_by(user_id=user_id, return_date=None).count()
+    if active_loans_count >= 5:
+        return {
+            'error': f'User {user.username} already has {active_loans_count} active loans. Maximum allowed is 5.',
+            'active_loans': active_loans_count,
+            'max_loans': 5
+        }, 400
         
     # Check for available copies
     if book.available_copies <= 0:
-        return {'error': f'No available copies of book "{book.title}" (ID: {book_id}) for loan'}, 400
+        return {
+            'error': f'No available copies of book "{book.title}" (ID: {book_id}) for loan',
+            'available_copies': 0,
+            'total_copies': book.total_copies
+        }, 400
     
     # Create a new Loan object (loan_date defaults to now in the model)
     new_loan = Loan(user_id=user_id, book_id=book_id)
@@ -261,8 +279,23 @@ def create_loan():
     db.session.add(new_loan)
     db.session.commit()
     
-    # Return success response with the created loan's ID
-    return {"message": "Loan created", "id": new_loan.id}, 201
+    # Return success response with detailed information
+    return {
+        "message": "Loan created successfully",
+        "loan": {
+            "id": new_loan.id,
+            "user_id": user_id,
+            "username": user.username,
+            "book_id": book_id,
+            "book_title": book.title,
+            "loan_date": new_loan.loan_date.isoformat(),
+            "due_date": new_loan.due_date.isoformat()
+        },
+        "book_availability": {
+            "available_copies": book.available_copies,
+            "total_copies": book.total_copies
+        }
+    }, 201
 
 @app.route('/loans', methods=['GET'])
 def list_loans():
