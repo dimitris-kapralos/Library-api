@@ -78,6 +78,69 @@ def list_users():
     } for user in users]
     return jsonify({'users': users_data}), 200
 
+@app.route('/users/<int:user_id>', methods=['GET'])
+def get_user(user_id):
+    """
+    Retrieve a specific user with their active loans.
+    
+    Args:
+        user_id: The ID of the user to retrieve
+    
+    Returns:
+        tuple: User details with active loans and 200 status code, or
+               error message with 404 status code if user not found
+    """
+    user = User.query.get(user_id)
+    if not user:
+        return {'error': f'User with ID {user_id} not found'}, 404
+    
+    # Get all active loans (not returned)
+    active_loans = Loan.query.filter_by(user_id=user_id, return_date=None).all()
+    
+    # Prepare active loans data with book details
+    active_loans_data = []
+    total_potential_fines = 0.0
+    
+    for loan in active_loans:
+        book = Book.query.get(loan.book_id)
+        
+        # Check if overdue
+        is_overdue = datetime.utcnow() > loan.due_date
+        days_overdue = 0
+        potential_fine = 0.0
+        
+        if is_overdue:
+            time_overdue = datetime.utcnow() - loan.due_date
+            days_overdue = time_overdue.days
+            potential_fine = min(days_overdue * 0.50, 25.00)
+            total_potential_fines += potential_fine
+        
+        active_loans_data.append({
+            'loan_id': loan.id,
+            'book_id': loan.book_id,
+            'book_title': book.title if book else 'Unknown',
+            'book_author': book.author if book else 'Unknown',
+            'loan_date': loan.loan_date.isoformat(),
+            'due_date': loan.due_date.isoformat(),
+            'is_overdue': is_overdue,
+            'days_overdue': days_overdue,
+            'potential_fine': potential_fine
+        })
+    
+    return jsonify({
+        'user': {
+            'id': user.id,
+            'username': user.username,
+            'email': user.email,
+            'phone': user.phone,
+            'role': user.role,
+            'created_at': user.created_at.isoformat()
+        },
+        'active_loans_count': len(active_loans_data),
+        'active_loans': active_loans_data,
+        'total_potential_fines': total_potential_fines
+    }), 200
+
 @app.route('/books', methods=['POST'])
 def create_book():
     """
