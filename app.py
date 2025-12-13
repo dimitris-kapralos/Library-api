@@ -7,7 +7,6 @@ app = Flask(__name__)
 init_db(app)
 create_tables(app)
 
-
 @app.route('/')
 def hello():
     """
@@ -18,6 +17,39 @@ def hello():
     """
     return {'message': 'Hello, World!'}
 
+@app.route('/health', methods=['GET'])
+def health_check():
+    """
+    Health check endpoint for monitoring system status.
+    
+    Returns:
+        tuple: System health information and 200 status code
+    """
+    try:
+        # Test database connection
+        user_count = User.query.count()
+        book_count = Book.query.count()
+        loan_count = Loan.query.count()
+        active_loans = Loan.query.filter_by(return_date=None).count()
+        
+        return jsonify({
+            'status': 'healthy',
+            'database': 'connected',
+            'timestamp': datetime.utcnow().isoformat(),
+            'statistics': {
+                'total_users': user_count,
+                'total_books': book_count,
+                'total_loans': loan_count,
+                'active_loans': active_loans
+            }
+        }), 200
+    except Exception as e:
+        return jsonify({
+            'status': 'unhealthy',
+            'database': 'disconnected',
+            'error': str(e),
+            'timestamp': datetime.utcnow().isoformat()
+        }), 500
 
 @app.route('/users', methods=['POST'])
 def create_user():
