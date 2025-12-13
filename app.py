@@ -405,6 +405,52 @@ def return_book(loan_id):
 
     return response, 200
 
+@app.route('/loans/overdue', methods=['GET'])
+def list_overdue_loans():
+    """
+    Retrieve all currently overdue loans (not yet returned and past due date).
+    
+    Returns:
+        tuple: Dictionary containing list of overdue loans with details and 200 status code
+    """
+    # Query for loans that are overdue
+    current_time = datetime.utcnow()
+    overdue_loans = Loan.query.filter(
+        Loan.return_date.is_(None),
+        Loan.due_date < current_time
+    ).all()
+    
+    # Prepare detailed response with user and book info
+    overdue_data = []
+    for loan in overdue_loans:
+        user = User.query.get(loan.user_id)
+        book = Book.query.get(loan.book_id)
+        
+        # Calculate days overdue
+        time_overdue = current_time - loan.due_date
+        days_overdue = time_overdue.days
+        potential_fine = min(days_overdue * 0.50, 25.00)
+        
+        overdue_data.append({
+            'loan_id': loan.id,
+            'user_id': loan.user_id,
+            'username': user.username if user else 'Unknown',
+            'user_email': user.email if user else 'Unknown',
+            'book_id': loan.book_id,
+            'book_title': book.title if book else 'Unknown',
+            'book_author': book.author if book else 'Unknown',
+            'loan_date': loan.loan_date.isoformat(),
+            'due_date': loan.due_date.isoformat(),
+            'days_overdue': days_overdue,
+            'potential_fine': potential_fine
+        })
+    
+    return jsonify({
+        'count': len(overdue_data),
+        'overdue_loans': overdue_data
+    }), 200
+
+
 # Run the Flask application when the script is executed directly
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
