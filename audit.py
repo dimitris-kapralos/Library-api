@@ -47,3 +47,42 @@ def log_audit(action, entity_type, entity_id, user_id=None, details=None):
     db.session.add(audit)
     
     return audit
+
+def get_audit_trail(entity_type=None, entity_id=None, action=None, user_id=None, limit=100):
+    """
+    Retrieve audit logs with optional filters.
+    
+    Args:
+        entity_type (str, optional): Filter by entity type
+        entity_id (int, optional): Filter by entity ID
+        action (str, optional): Filter by action
+        user_id (int, optional): Filter by user ID
+        limit (int): Maximum number of records to return (default: 100)
+    
+    Returns:
+        list: List of AuditLog objects
+
+    """
+    query = AuditLog.query
+    
+    if entity_type:
+        query = query.filter_by(entity_type=entity_type)
+    
+    if entity_id:
+        query = query.filter_by(entity_id=entity_id)
+    
+    if action:
+        query = query.filter_by(action=action)
+    
+    if user_id:
+        query = query.filter_by(user_id=user_id)
+    
+    # Order by most recent first
+    query = query.order_by(AuditLog.timestamp.desc())
+    
+    # Limit results
+    query = query.limit(limit)
+    
+    return query.all()
+
+
