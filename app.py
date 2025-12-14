@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify
-from database import db, init_db, create_tables, User, Book, Loan
+from database import db, init_db, create_tables, User, Book, Loan, AuditLog
 from datetime import datetime
 from audit import format_audit_log, get_audit_trail
 
@@ -629,6 +629,23 @@ def list_audit_logs():
         }
     }), 200
  
+@app.route('/audit-logs/<int:audit_id>', methods=['GET'])
+def get_audit_log(audit_id):
+    """
+    Retrieve a specific audit log entry.
+    
+    Args:
+        audit_id: The ID of the audit log to retrieve
+    
+    Returns:
+        tuple: Audit log details and 200 status code, or
+               error message with 404 status code if not found
+    """
+    audit_log = AuditLog.query.get(audit_id)
+    if not audit_log:
+        return {'error': f'Audit log with ID {audit_id} not found'}, 404
+    
+    return jsonify(format_audit_log(audit_log)), 200
 
 # Run the Flask application when the script is executed directly
 if __name__ == '__main__':
