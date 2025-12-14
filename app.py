@@ -328,9 +328,27 @@ def update_book_copies(book_id):
     if total_copies < books_on_loan:
         return {"error": f"Total copies cannot be less than copies on loan ({books_on_loan})"}, 400
     
+    # Store old values for audit
+    old_total = book.total_copies
+    old_available = book.available_copies
+    
     # Update total and available copies
     book.available_copies += (total_copies - book.total_copies)
     book.total_copies = total_copies
+    
+    # Log audit trail
+    log_audit(
+        action=AuditAction.BOOK_UPDATED,
+        entity_type='book',
+        entity_id=book_id,
+        details={
+            'old_total_copies': old_total,
+            'new_total_copies': total_copies,
+            'old_available_copies': old_available,
+            'new_available_copies': book.available_copies
+        }
+    )
+    
     db.session.commit()
     
     return {"message": f"Book ID {book_id} updated", 
