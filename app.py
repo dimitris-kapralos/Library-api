@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 from database import db, init_db, create_tables, User, Book, Loan
 from datetime import datetime
+from audit import format_audit_log, get_audit_trail
 
 # Initialize the Flask application and database
 app = Flask(__name__)
@@ -577,7 +578,57 @@ def list_overdue_loans():
         'count': len(overdue_data),
         'overdue_loans': overdue_data
     }), 200
+    
+@app.route('/audit-logs', methods=['GET'])
+def list_audit_logs():
+    """
+    Retrieve audit logs with optional filters.
+    
+    Query Parameters:
+        entity_type (str): Filter by entity type (user, book, loan)
+        entity_id (int): Filter by specific entity ID
+        action (str): Filter by action type
+        user_id (int): Filter by user who performed action
+        limit (int): Maximum number of records (default: 100, max: 500)
+    
+    Returns:
+        tuple: Dictionary containing filtered audit logs and 200 status code
 
+    """
+    # Get query parameters
+    entity_type = request.args.get('entity_type')
+    entity_id = request.args.get('entity_id', type=int)
+    action = request.args.get('action')
+    user_id = request.args.get('user_id', type=int)
+    limit = request.args.get('limit', default=100, type=int)
+    
+    # Enforce maximum limit
+    limit = min(limit, 500)
+    
+    # Get audit logs
+    audit_logs = get_audit_trail(
+        entity_type=entity_type,
+        entity_id=entity_id,
+        action=action,
+        user_id=user_id,
+        limit=limit
+    )
+    
+    # Format for response
+    logs_data = [format_audit_log(log) for log in audit_logs]
+    
+    return jsonify({
+        'count': len(logs_data),
+        'audit_logs': logs_data,
+        'filters': {
+            'entity_type': entity_type,
+            'entity_id': entity_id,
+            'action': action,
+            'user_id': user_id,
+            'limit': limit
+        }
+    }), 200
+ 
 
 # Run the Flask application when the script is executed directly
 if __name__ == '__main__':
