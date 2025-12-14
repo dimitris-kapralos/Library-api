@@ -418,6 +418,23 @@ def create_loan():
     book.available_copies -= 1
     
     db.session.add(new_loan)
+    db.session.flush()
+    
+    # Log audit trail
+    log_audit(
+        action=AuditAction.LOAN_CREATED,
+        entity_type='loan',
+        entity_id=new_loan.id,
+        user_id=user_id,
+        details={
+            'book_id': book_id,
+            'book_title': book.title,
+            'username': user.username,
+            'due_date': new_loan.due_date.isoformat(),
+            'available_copies_after': book.available_copies
+        }
+    )
+    
     db.session.commit()
     
     # Return success response with detailed information
