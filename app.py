@@ -216,6 +216,20 @@ def create_book():
     # Create a new Book object and add it to the database
     new_book = Book(title=title, author=author, isbn=isbn)
     db.session.add(new_book)
+    db.session.flush()
+    
+    # Log audit trail
+    log_audit(
+        action=AuditAction.BOOK_CREATED,
+        entity_type='book',
+        entity_id=new_book.id,
+        details={
+            'title': title,
+            'author': author,
+            'isbn': isbn
+        }
+    )
+    
     db.session.commit()
     
     # Return success response with the created book's ID
