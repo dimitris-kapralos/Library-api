@@ -85,4 +85,44 @@ def get_audit_trail(entity_type=None, entity_id=None, action=None, user_id=None,
     
     return query.all()
 
+def format_audit_log(audit_log):
+    """
+    Format an AuditLog object as a dictionary for API responses.
+    
+    Args:
+        audit_log (AuditLog): The audit log to format
+    
+    Returns:
+        dict: Formatted audit log data
+    """
+    # Parse details JSON back to dict
+    details = None
+    if audit_log.details:
+        try:
+            details = json.loads(audit_log.details)
+        except (json.JSONDecodeError, TypeError):
+            details = audit_log.details
+    
+    return {
+        'id': audit_log.id,
+        'action': audit_log.action,
+        'entity_type': audit_log.entity_type,
+        'entity_id': audit_log.entity_id,
+        'user_id': audit_log.user_id,
+        'timestamp': audit_log.timestamp.isoformat(),
+        'details': details,
+        'ip_address': audit_log.ip_address
+    }
+
+
+# Common action names 
+class AuditAction:
+    """Constants for audit action names"""
+    USER_CREATED = 'user_created'
+    BOOK_CREATED = 'book_created'
+    BOOK_UPDATED = 'book_updated'
+    LOAN_CREATED = 'loan_created'
+    LOAN_RETURNED = 'loan_returned'
+    FINE_CALCULATED = 'fine_calculated'
+    LOAN_OVERDUE = 'loan_overdue'
 
