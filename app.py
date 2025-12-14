@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify
 from database import db, init_db, create_tables, User, Book, Loan, AuditLog
 from datetime import datetime
-from audit import format_audit_log, get_audit_trail
+from audit import log_audit, get_audit_trail, format_audit_log, AuditAction
 
 # Initialize the Flask application and database
 app = Flask(__name__)
@@ -76,7 +76,6 @@ def create_user():
     phone = data.get('phone')
     role = data.get('role', 'patron')
     
-    
     # Validate that all required fields are present
     if not username or not email or not phone:
         return {'error': 'Missing required fields'}, 400
@@ -84,6 +83,20 @@ def create_user():
     # Create a new User object and add it to the database
     new_user = User(username=username, email=email, phone=phone, role=role)
     db.session.add(new_user)
+    db.session.flush()  # Get the ID without committing
+    
+    # Log audit trail
+    log_audit(
+        action=AuditAction.USER_CREATED,
+        entity_type='user',
+        entity_id=new_user.id,
+        details={
+            'username': username,
+            'email': email,
+            'role': role
+        }
+    )
+    
     db.session.commit()
     
     # Return success response with the created user's ID
