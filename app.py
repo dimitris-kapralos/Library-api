@@ -578,6 +578,41 @@ def return_book(loan_id):
 
     # Update Book's available copies
     book.available_copies += 1
+    
+    # Log audit trail
+    log_audit(
+        action=AuditAction.LOAN_RETURNED,
+        entity_type='loan',
+        entity_id=loan_id,
+        user_id=loan.user_id,
+        details={
+            'book_id': book.id,
+            'book_title': book.title,
+            'return_date': loan.return_date.isoformat(),
+            'due_date': loan.due_date.isoformat(),
+            'is_overdue': is_overdue,
+            'days_overdue': days_overdue,
+            'fine': fine,
+            'available_copies_after': book.available_copies
+        }
+    )
+    
+    # Log fine calculation if applicable
+    if fine > 0:
+        log_audit(
+            action=AuditAction.FINE_CALCULATED,
+            entity_type='loan',
+            entity_id=loan_id,
+            user_id=loan.user_id,
+            details={
+                'fine_amount': fine,
+                'days_overdue': days_overdue,
+                'fine_rate': 0.50,
+                'max_fine': 25.00
+            }
+        )
+    
+    # Commit all changes
     db.session.commit()
     
     response = {
