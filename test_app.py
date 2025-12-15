@@ -4,7 +4,8 @@ Tests all API endpoints and business logic.
 """
 
 import json
-from database import User, Book
+from database import db, User, Book, Loan
+
 
 # HEALTH CHECK TESTS 
 
@@ -210,4 +211,104 @@ def test_update_book_copies(client, sample_book):
     assert data['total_copies'] == 5
     assert data['available_copies'] == 5
     
-              
+# LOAN ENDPOINT TESTS
+
+def test_create_loan(client, sample_user, sample_book):
+    """Test successful loan creation with valid data."""
+    response = client.post('/loans', 
+        json={
+            'user_id': sample_user.id,
+            'book_id': sample_book.id
+        },
+        content_type='application/json'
+    )
+    
+    assert response.status_code == 201
+    data = json.loads(response.data)
+    
+    # Check response structure
+    assert 'message' in data
+    assert data['message'] == 'Loan created successfully'
+    assert 'loan' in data
+    assert 'book_availability' in data
+    
+    # Check loan details
+    loan = data['loan']
+    assert loan['user_id'] == sample_user.id
+    assert loan['username'] == sample_user.username
+    assert loan['book_id'] == sample_book.id
+    assert loan['book_title'] == sample_book.title
+    assert 'loan_date' in loan
+    assert 'due_date' in loan
+    assert 'id' in loan
+    
+    # Check book availability was updated
+    assert data['book_availability']['available_copies'] == 2
+    assert data['book_availability']['total_copies'] == 3
+    
+    # Verify database was updated
+    db_book = db.session.get(Book, sample_book.id)
+    assert db_book.available_copies == 2
+    
+    # Verify loan exists in database
+    db_loan = db.session.get(Loan, loan['id'])
+    assert db_loan is not None
+    assert db_loan.user_id == sample_user.id
+    assert db_loan.book_id == sample_book.id
+    assert db_loan.return_date is None
+    
+def test_get_loan(client, sample_loan):
+    """Test getting a specific loan."""
+    with client.application.app_context():
+        loan_id = sample_loan.id
+    
+    response = client.get(f'/loans/{loan_id}')
+    assert response.status_code == 200
+    
+    data = json.loads(response.data)
+    assert 'loan' in data
+    assert 'user' in data
+    assert 'book' in data
+    assert data['loan']['id'] == loan_id    
+    
+def test_create_loan_missing_fields(client):
+    """Test creating loan with missing fields fails."""
+    response = client.post('/loans', json={
+        'user_id': 1
+        # Missing book_id
+    })
+    
+    assert response.status_code == 400
+    data = json.loads(response.data)
+    assert 'error' in data    
+    
+def test_create_loan_nonexistent_user(client, sample_book):
+    """Test creating loan with nonexistent user fails."""
+    with client.application.app_context():
+        book_id = sample_book.id
+    
+    response = client.post('/loans', json={
+        'user_id': 99999,
+        'book_id': book_id
+    })
+    
+    assert response.status_code == 404
+    data = json.loads(response.data)
+    assert 'error' in data
+    assert 'User' in data['error']
+    
+def test_create_loan_nonexistent_book(client, sample_user):
+    """Test creating loan with nonexistent book fails."""
+    with client.application.app_context():
+        user_id = sample_user.id
+    
+    response = client.post('/loans', json={
+        'user_id': user_id,
+        'book_id': 99999
+    })
+    
+    assert response.status_code == 404
+    data = json.loads(response.data)
+    assert 'error' in data
+    assert 'Book' in data['error']
+    
