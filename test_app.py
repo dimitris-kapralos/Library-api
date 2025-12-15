@@ -5,7 +5,7 @@ Tests all API endpoints and business logic.
 
 import json
 from database import db, User, Book, Loan
-
+from datetime import datetime, timedelta
 
 # HEALTH CHECK TESTS 
 
@@ -311,4 +311,71 @@ def test_create_loan_nonexistent_book(client, sample_user):
     data = json.loads(response.data)
     assert 'error' in data
     assert 'Book' in data['error']
+
+def test_create_loan_no_available_copies(client, sample_user, sample_book):
+    """Test creating loan when no copies available fails."""
+    with client.application.app_context():
+        user_id = sample_user.id
+        book_id = sample_book.id
+        
+        # Set available copies to 0
+        book = db.session.get(Book, book_id)
+        book.available_copies = 0
+        db.session.commit()
     
+    response = client.post('/loans', json={
+        'user_id': user_id,
+        'book_id': book_id
+    })
+    
+    assert response.status_code == 400
+    data = json.loads(response.data)
+    assert 'error' in data
+    assert 'available' in data['error'].lower()    
+        
+def test_create_loan_due_date_is_14_days(client, sample_user, sample_book):
+    """Test that loan due date is set to 14 days from creation."""
+    response = client.post('/loans',
+        json={
+            'user_id': sample_user.id,
+            'book_id': sample_book.id
+        },
+        content_type='application/json'
+    )
+    
+    assert response.status_code == 201
+    data = json.loads(response.data)
+    
+    loan_date = datetime.fromisoformat(data['loan']['loan_date'])
+    due_date = datetime.fromisoformat(data['loan']['due_date'])
+    
+    # Check that due date is 14 days after loan date
+    expected_due = loan_date + timedelta(days=14)
+    assert abs((due_date - expected_due).total_seconds()) < 60  # Within 1 minute  
+    
+
+def test_return_book_on_time(client, sample_loan):
+    """Test returning a book on time (no fine)."""
+    with client.application.app_context():
+        loan_id = sample_loan.id
+        book_id = sample_loan.book_id
+        
+        # Get initial available copies
+        book = db.session.get(Book, book_id)
+        initial_available = book.available_copies
+    
+    response = client.patch(f'/loans/{loan_id}/return')
+    assert response.status_code == 200
+    
+    data = json.loads(response.data)
+    assert data['message'] == f'Book ID {book.id} returned successfully'
+    assert not data['is_overdue']
+    assert data['fine'] == 0.0
+    assert data['days_overdue'] == 0
+    
+    # Verify available copies increased
+    with client.application.app_context():
+        book = db.session.get(Book, book_id)
+        assert book.available_copies == initial_available + 1
+
+            
