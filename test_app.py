@@ -4,7 +4,7 @@ Tests all API endpoints and business logic.
 """
 
 import json
-from database import User
+from database import User, Book
 
 # HEALTH CHECK TESTS 
 
@@ -100,3 +100,114 @@ def test_get_nonexistent_user(client):
     data = json.loads(response.data)
     assert 'error' in data
     
+# BOOK ENDPOINT TESTS 
+
+def test_create_book(client):
+    """Test creating a new book."""
+    response = client.post('/books', json={
+        'title': '1984',
+        'author': 'George Orwell',
+        'isbn': '9780451524935'
+    })
+    
+    assert response.status_code == 201
+    data = json.loads(response.data)
+    assert data['message'] == 'Book 1984 created'
+    assert 'id' in data
+    
+    # Verify book was created with default copies
+    with client.application.app_context():
+        book = Book.query.filter_by(isbn='9780451524935').first()
+        assert book is not None
+        assert book.total_copies == 1
+        assert book.available_copies == 1
+
+
+def test_create_book_missing_fields(client):
+    """Test creating book with missing fields fails."""
+    response = client.post('/books', json={
+        'title': 'Incomplete Book'
+        # Missing author and isbn
+    })
+    
+    assert response.status_code == 400
+    data = json.loads(response.data)
+    assert 'error' in data
+
+
+def test_list_books(client, sample_book):
+    """Test listing all books."""
+    response = client.get('/books')
+    assert response.status_code == 200
+    
+    data = json.loads(response.data)
+    assert 'books' in data
+    assert len(data['books']) >= 1
+    
+    # Check book structure
+    book = data['books'][0]
+    assert 'id' in book
+    assert 'title' in book
+    assert 'author' in book
+    assert 'isbn' in book
+    assert 'total_copies' in book
+    assert 'available_copies' in book
+
+def test_get_nonexistent_book(client):
+    """Test getting a book that doesn't exist."""
+    response = client.get('/books/99999')
+    assert response.status_code == 404
+    
+    data = json.loads(response.data)
+    assert 'error' in data
+    
+def test_multiple_books_fixture(app, multiple_books):
+    """Verify multiple_books fixture inserts three books with correct attributes."""
+    with app.app_context():
+        db_books = Book.query.order_by(Book.id).all()
+        assert len(db_books) == 3
+
+        assert [b.title for b in db_books] == ['Book 1', 'Book 2', 'Book 3']
+        assert [b.isbn for b in db_books] == ['1111111111', '2222222222', '3333333333']
+        assert [b.total_copies for b in db_books] == [2, 1, 5]
+        assert [b.available_copies for b in db_books] == [2, 1, 5]
+
+def test_sample_book_fixture(app, sample_book):
+    """Verify the sample_book fixture inserts a book with expected attributes."""
+    with app.app_context():
+        db_book = Book.query.filter_by(isbn='1234567890').first()
+        assert db_book is not None
+        assert db_book.title == 'Test Book'
+        assert db_book.author == 'Test Author'
+        assert db_book.total_copies == 3
+        assert db_book.available_copies == 3
+        assert sample_book.id == db_book.id
+
+def test_update_book_negative_copies(client, sample_book):
+    """Test that negative copies are rejected."""
+    with client.application.app_context():
+        book_id = sample_book.id
+    
+    response = client.patch(f'/books/{book_id}', json={
+        'total_copies': -1
+    })
+    
+    assert response.status_code == 400
+    data = json.loads(response.data)
+    assert 'error' in data  
+    
+def test_update_book_copies(client, sample_book):
+    """Test updating book copies."""
+    with client.application.app_context():
+        book_id = sample_book.id
+    
+    response = client.patch(f'/books/{book_id}', json={
+        'total_copies': 5
+    })
+    
+    assert response.status_code == 200
+    data = json.loads(response.data)
+    assert data['total_copies'] == 5
+    assert data['available_copies'] == 5
+    
+              
