@@ -39,7 +39,7 @@ class AuditLog(db.Model):
     action = db.Column(db.String(100), nullable=False)
     entity_type = db.Column(db.String(50), nullable=False)
     entity_id = db.Column(db.Integer, nullable=False)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    user_id = db.Column(db.Integer, nullable=True)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     details = db.Column(db.Text, nullable=True)
     ip_address = db.Column(db.String(45), nullable=True)
