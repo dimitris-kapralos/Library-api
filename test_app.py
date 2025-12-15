@@ -4,7 +4,7 @@ Tests all API endpoints and business logic.
 """
 
 import json
-from database import db, User, Book, Loan
+from database import db, User, Book, Loan, AuditLog
 from datetime import datetime, timedelta
 
 # HEALTH CHECK TESTS 
@@ -377,5 +377,81 @@ def test_return_book_on_time(client, sample_loan):
     with client.application.app_context():
         book = db.session.get(Book, book_id)
         assert book.available_copies == initial_available + 1
+ 
+# AUDIT LOG TESTS 
 
-            
+def test_audit_log_created_on_user_creation(client):
+    """Test that audit log is created when user is created."""
+    response = client.post('/users', json={
+        'username': 'audituser',
+        'email': 'audit@example.com',
+        'phone': '999-999-9999'
+    })
+    
+    assert response.status_code == 201
+    
+    # Check audit log
+    with client.application.app_context():
+        audit = AuditLog.query.filter_by(action='user_created').first()
+        assert audit is not None
+        assert audit.entity_type == 'user'
+
+def test_audit_log_created_on_loan(client, sample_user, sample_book):
+    """Test that audit log is created when loan is created."""
+    with client.application.app_context():
+        user_id = sample_user.id
+        book_id = sample_book.id
+    
+    response = client.post('/loans', json={
+        'user_id': user_id,
+        'book_id': book_id
+    })
+    
+    assert response.status_code == 201
+    
+    # Check audit log
+    with client.application.app_context():
+        audit = AuditLog.query.filter_by(action='loan_created').first()
+        assert audit is not None
+        assert audit.entity_type == 'loan'
+        assert audit.user_id == user_id
+        
+def test_list_audit_logs(client, sample_user, sample_book):
+    """Test listing audit logs."""
+    # Create some actions to generate audit logs
+    with client.application.app_context():
+        user_id = sample_user.id
+        book_id = sample_book.id
+    
+    client.post('/loans', json={
+        'user_id': user_id,
+        'book_id': book_id
+    })
+    
+    response = client.get('/audit-logs')
+    assert response.status_code == 200
+    
+    data = json.loads(response.data)
+    assert 'audit_logs' in data
+    assert 'count' in data
+    assert data['count'] > 0
+
+def test_get_specific_audit_log(client, sample_user):
+    """Test getting a specific audit log."""
+    # Get the first audit log
+    response = client.get('/audit-logs?limit=1')
+    assert response.status_code == 200
+    
+    data = json.loads(response.data)
+    if data['count'] > 0:
+        audit_id = data['audit_logs'][0]['id']
+        
+        # Get specific audit log
+        response = client.get(f'/audit-logs/{audit_id}')
+        assert response.status_code == 200
+        
+        log = json.loads(response.data)
+        assert log['id'] == audit_id
+        assert 'action' in log
+        assert 'timestamp' in log
+
