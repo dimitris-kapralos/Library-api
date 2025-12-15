@@ -4,7 +4,7 @@ Pytest configuration and shared fixtures for testing.
 
 import pytest
 from app import app as flask_app
-from database import db
+from database import db, User
 
 @pytest.fixture
 def app():
@@ -38,3 +38,43 @@ def runner(app):
     """
     return app.test_cli_runner()
 
+@pytest.fixture
+def sample_user(app):
+    """
+    Create a sample user in the database.
+    
+    Returns:
+        User: A user object with username='testuser'
+    """
+    with app.app_context():
+        user = User(
+            username='testuser',
+            email='test@example.com',
+            phone='123-456-7890',
+            role='patron'
+        )
+        db.session.add(user)
+        db.session.commit()
+        return user
+
+
+@pytest.fixture
+def sample_librarian(app):
+    """
+    Create a sample librarian user in the database.
+    
+    Returns:
+        User: A user object with role='librarian'
+    """
+    with app.app_context():
+        user = User(
+            username='librarian',
+            email='librarian@example.com',
+            phone='123-456-7891',
+            role='librarian'
+        )
+        db.session.add(user)
+        db.session.commit()
+        return user
+    
+    
