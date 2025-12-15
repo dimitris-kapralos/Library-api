@@ -16,7 +16,7 @@ def hello():
     Returns:
         dict: A welcome message
     """
-    return {'message': 'Hello, World!'}
+    return {'message': 'Library Management System'}
 
 @app.route('/health', methods=['GET'])
 def health_check():
