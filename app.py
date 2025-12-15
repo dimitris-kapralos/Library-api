@@ -136,7 +136,7 @@ def get_user(user_id):
         tuple: User details with active loans and 200 status code, or
                error message with 404 status code if user not found
     """
-    user = User.query.get(user_id)
+    user = db.session.get(User, user_id)
     if not user:
         return {'error': f'User with ID {user_id} not found'}, 404
     
@@ -385,9 +385,9 @@ def create_loan():
         return {'error': 'Missing required fields (user_id, book_id)'}, 400
     
     # Check if User and Book exist
-    user = User.query.get(user_id)
-    book = Book.query.get(book_id)
-    
+    user = db.session.get(User, user_id)
+    book = db.session.get(Book, book_id)
+
     if not user:
         return {'error': f'User with ID {user_id} not found'}, 404
     
@@ -489,7 +489,7 @@ def get_loan(loan_id):
         tuple: Loan details and 200 status code, or
                error message with 404 status code if loan not found
     """
-    loan = Loan.query.get(loan_id)
+    loan = db.session.get(Loan, loan_id)
     if not loan:
         return {"error": f"Loan with ID {loan_id} not found"}, 404
     
@@ -550,7 +550,7 @@ def return_book(loan_id):
         tuple: Success message with fine details and 200 status code, or
                error message with 400/404 status code if validation fails
     """
-    loan = Loan.query.get(loan_id)
+    loan = db.session.get(Loan, loan_id)
     if not loan:
         return {"error": f"Loan with ID {loan_id} not found"}, 404
     
