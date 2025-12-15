@@ -4,7 +4,8 @@ Pytest configuration and shared fixtures for testing.
 
 import pytest
 from app import app as flask_app
-from database import db, User, Book
+from database import db, User, Book, Loan
+from datetime import datetime, timedelta
 
 @pytest.fixture
 def app():
@@ -55,6 +56,8 @@ def sample_user(app):
         )
         db.session.add(user)
         db.session.commit()
+        db.session.refresh(user)
+        db.session.expunge(user)        
         return user
 
 
@@ -119,4 +122,85 @@ def multiple_books(app):
         db.session.commit()
         return books
 
+@pytest.fixture
+def sample_loan(app, sample_user, sample_book):
+    """
+    Create a sample loan in the database.
+    
+    Returns:
+        Loan: A loan object linking sample_user and sample_book
+    """
+    with app.app_context():
+        # Refresh objects in current session
+        user = db.session.merge(sample_user)
+        book = db.session.merge(sample_book)
+        
+        loan = Loan(
+            user_id=user.id,
+            book_id=book.id
+        )
+        
+        # Update book availability
+        book.available_copies -= 1
+        
+        db.session.add(loan)
+        db.session.commit()
+        db.session.refresh(loan)
+        db.session.expunge(loan)
+        return loan
+
+
+@pytest.fixture
+def overdue_loan(app, sample_user, sample_book):
+    """
+    Create an overdue loan (due date in the past).
+    
+    Returns:
+        Loan: An overdue loan object
+    """
+    with app.app_context():
+        user = db.session.merge(sample_user)
+        book = db.session.merge(sample_book)
+        
+        # Create a loan that's 5 days overdue
+        loan = Loan(
+            user_id=user.id,
+            book_id=book.id,
+            loan_date=datetime.utcnow() - timedelta(days=19),  
+            due_date=datetime.utcnow() - timedelta(days=5)     
+        )
+        
+        book.available_copies -= 1
+        
+        db.session.add(loan)
+        db.session.commit()
+        return loan
+
+
+@pytest.fixture
+def returned_loan(app, sample_user, sample_book):
+    """
+    Create a returned loan.
+    
+    Returns:
+        Loan: A returned loan object with fine
+    """
+    with app.app_context():
+        user = db.session.merge(sample_user)
+        book = db.session.merge(sample_book)
+        
+        # Create a loan returned 3 days late
+        loan = Loan(
+            user_id=user.id,
+            book_id=book.id,
+            loan_date=datetime.utcnow() - timedelta(days=17),
+            due_date=datetime.utcnow() - timedelta(days=3),
+            return_date=datetime.utcnow(),
+            fine=1.50  # 3 days × $0.50
+        )
+        
+        db.session.add(loan)
+        db.session.commit()
+        return loan    
+    
     
