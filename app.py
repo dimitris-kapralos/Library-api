@@ -148,7 +148,7 @@ def get_user(user_id):
     total_potential_fines = 0.0
     
     for loan in active_loans:
-        book = Book.query.get(loan.book_id)
+        book = db.session.get(Book, loan.book_id)
         
         # Check if overdue
         is_overdue = datetime.utcnow() > loan.due_date
@@ -268,7 +268,7 @@ def get_book(book_id):
         tuple: Book details with availability stats and 200 status code, or
                error message with 404 status code if book not found
     """
-    book = Book.query.get(book_id)
+    book = db.session.get(Book, book_id)
     if not book:
         return {"error": f"Book with ID {book_id} not found"}, 404
     
@@ -318,7 +318,7 @@ def update_book_copies(book_id):
     if total_copies < 0:
         return {"error": "Total copies cannot be negative"}, 400
     
-    book = Book.query.get(book_id)
+    book = db.session.get(Book, book_id)
     if not book:
         return {"error": f"Book with ID {book_id} not found"}, 404
     
@@ -493,8 +493,8 @@ def get_loan(loan_id):
     if not loan:
         return {"error": f"Loan with ID {loan_id} not found"}, 404
     
-    user = User.query.get(loan.user_id)
-    book = Book.query.get(loan.book_id)
+    user = db.session.get(User, loan.user_id)
+    book = db.session.get(Book, loan.book_id)
     
     # calculate if the loan is overdue
     is_overdue = False
@@ -557,7 +557,7 @@ def return_book(loan_id):
     if loan.return_date is not None:
         return {"error": f"Book for Loan ID {loan_id} has already been returned"}, 400
     
-    book = Book.query.get(loan.book_id)
+    book = db.session.get(Book, loan.book_id)
     if not book:
         return {"error": f"Book with ID {loan.book_id} not found"}, 404
     
@@ -649,8 +649,8 @@ def list_overdue_loans():
     # Prepare detailed response with user and book info
     overdue_data = []
     for loan in overdue_loans:
-        user = User.query.get(loan.user_id)
-        book = Book.query.get(loan.book_id)
+        user = db.session.get(User, loan.user_id)
+        book = db.session.get(Book, loan.book_id)
         
         # Calculate days overdue
         time_overdue = current_time - loan.due_date
@@ -738,7 +738,7 @@ def get_audit_log(audit_id):
         tuple: Audit log details and 200 status code, or
                error message with 404 status code if not found
     """
-    audit_log = AuditLog.query.get(audit_id)
+    audit_log = db.session.get(AuditLog, audit_id)
     if not audit_log:
         return {'error': f'Audit log with ID {audit_id} not found'}, 404
     
