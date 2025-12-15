@@ -4,7 +4,7 @@ Pytest configuration and shared fixtures for testing.
 
 import pytest
 from app import app as flask_app
-from database import db, User
+from database import db, User, Book
 
 @pytest.fixture
 def app():
@@ -77,4 +77,46 @@ def sample_librarian(app):
         db.session.commit()
         return user
     
+@pytest.fixture
+def sample_book(app):
+    """
+    Create a sample book in the database.
+    
+    Returns:
+        Book: A book object with title='Test Book'
+    """
+    with app.app_context():
+        book = Book(
+            title='Test Book',
+            author='Test Author',
+            isbn='1234567890',
+            total_copies=3,
+            available_copies=3
+        )
+        db.session.add(book)
+        db.session.commit()
+        db.session.refresh(book)
+        db.session.expunge(book)        
+        return book
+
+
+@pytest.fixture
+def multiple_books(app):
+    """
+    Create multiple books in the database.
+    
+    Returns:
+        list: List of Book objects
+    """
+    with app.app_context():
+        books = [
+            Book(title='Book 1', author='Author A', isbn='1111111111', total_copies=2, available_copies=2),
+            Book(title='Book 2', author='Author B', isbn='2222222222', total_copies=1, available_copies=1),
+            Book(title='Book 3', author='Author C', isbn='3333333333', total_copies=5, available_copies=5),
+        ]
+        for book in books:
+            db.session.add(book)
+        db.session.commit()
+        return books
+
     
