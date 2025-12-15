@@ -455,3 +455,84 @@ def test_get_specific_audit_log(client, sample_user):
         assert 'action' in log
         assert 'timestamp' in log
 
+# BUSINESS LOGIC TESTS 
+
+def test_fine_calculation_logic(client, sample_user, sample_book):
+    """Test fine calculation logic for various overdue periods."""
+    test_cases = [
+        (1, 0.50),   # 1 day overdue = $0.50
+        (5, 2.50),   # 5 days = $2.50
+        (10, 5.00),  # 10 days = $5.00
+        (50, 25.00), # 50 days = $25.00 (capped)
+        (100, 25.00) # 100 days = $25.00 (capped)
+    ]
+    
+    for days_overdue, expected_fine in test_cases:
+        with client.application.app_context():
+            user_id = sample_user.id
+            book_id = sample_book.id
+            
+            # Create overdue loan
+            loan = Loan(
+                user_id=user_id,
+                book_id=book_id,
+                loan_date=datetime.utcnow() - timedelta(days=14 + days_overdue),
+                due_date=datetime.utcnow() - timedelta(days=days_overdue)
+            )
+            
+            book = db.session.get(Book, book_id)
+            book.available_copies -= 1
+            
+            db.session.add(loan)
+            db.session.commit()
+            
+            loan_id = loan.id
+        
+        # Return the book
+        response = client.patch(f'/loans/{loan_id}/return')
+        assert response.status_code == 200
+        
+        data = json.loads(response.data)
+        assert data['fine'] == expected_fine, f"Expected ${expected_fine} for {days_overdue} days, got ${data['fine']}"
+        
+        # Clean up for next test
+        with client.application.app_context():
+            loan = db.session.get(Loan, loan_id)
+            book = db.session.get(Book, book_id)
+            book.available_copies += 1
+            db.session.delete(loan)
+            db.session.commit()
+
+def test_user_with_active_loans_shows_fines(client, sample_user, sample_book):
+    """Test that user endpoint shows potential fines for overdue books."""
+    with client.application.app_context():
+        user_id = sample_user.id
+        book_id = sample_book.id
+        
+        # Create an overdue loan
+        loan = Loan(
+            user_id=user_id,
+            book_id=book_id,
+            loan_date=datetime.utcnow() - timedelta(days=19),
+            due_date=datetime.utcnow() - timedelta(days=5)  # 5 days overdue
+        )
+
+        book = db.session.get(Book, book_id)
+        book.available_copies -= 1
+        
+        db.session.add(loan)
+        db.session.commit()
+    
+    response = client.get(f'/users/{user_id}')
+    assert response.status_code == 200
+    
+    data = json.loads(response.data)
+    assert data['active_loans_count'] == 1
+    assert data['total_potential_fines'] == 2.50  # 5 days × $0.50
+    
+    loan_data = data['active_loans'][0]
+    assert loan_data['is_overdue'] 
+    assert loan_data['days_overdue'] == 5
+    assert loan_data['potential_fine'] == 2.50
+                       
+   
